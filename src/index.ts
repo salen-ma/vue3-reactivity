@@ -1,10 +1,14 @@
-const isObject = (val: any) => val !== null && typeof val === 'object'
-const convert = (target: any) => isObject(target) ? reactive(target) : target
+type Record<K extends keyof any, T> = {
+  [P in K]: T;
+};
+
+const isObject = (val: unknown): val is Record<any, any> => val !== null && typeof val === 'object'
+const convert = <T extends unknown>(target: T) => isObject(target) ? reactive(target) : target
 const hasOwnProperty = Object.prototype.hasOwnProperty
 const hasOwn = (target: any, key: string | symbol) => hasOwnProperty.call(target, key)
 
 // 将值转换为响应式对象
-export function reactive (target: any) {
+export function reactive<T extends object> (target: T) {
   if (!isObject(target)) return target
 
   const handler: ProxyHandler<any> = {
@@ -35,7 +39,7 @@ export function reactive (target: any) {
     }
   }
 
-  return new Proxy(target, handler)
+  return new Proxy<T>(target, handler)
 }
 
 
@@ -46,7 +50,10 @@ export function effect (callback: Function) {
   activeEffect = null
 }
 
-let targetMap = new WeakMap<object, Map<string | symbol, Set<Function>>>()
+type Dep = Set<Function>
+type KeyToDepMap = Map<any, Dep>
+const targetMap = new WeakMap<any, KeyToDepMap>()
+
 // 收集依赖
 export function track (target: any, key: string | symbol) {
   if (activeEffect == null) return
@@ -71,12 +78,20 @@ export function trigger (target: any, key: string | symbol) {
   }
 }
 
-export interface Ref {
+export interface Ref<T = any> {
   __v_isRef: boolean,
-  value: any
+  value: T
 }
-export function ref (raw?: any): Ref {
-  if (isObject(raw) && raw.__v_isRef) return raw as Ref
+
+export function isRef<T>(r: Ref<T> | unknown): r is Ref<T>
+export function isRef(r: any): r is Ref {
+  return Boolean(r && r.__v_isRef === true)
+}
+
+export function ref<T>(value: T): Ref<T>
+export function ref<T = any>(): Ref<T | undefined>
+export function ref (raw?: unknown) {
+  if (isRef(raw)) return raw
   let value = convert(raw)
   const r = {
     __v_isRef: true,
